@@ -366,6 +366,56 @@ function base58Encode(buf) {
   return out;
 }
 
+// 不健康内容分类关键词（与 LibreTV cms-parser.ts、Selene ContentFilterService 保持一致）
+const ADULT_KEYWORDS = [
+  '伦理片', '伦理', '倫理片', '理论片', '福利', '福利片', '福利视频', '日本伦理', '日本福利',
+  '韩国伦理', '港台三级', '里番动漫', '门事件', '萝莉少女', '制服诱惑', '国产传媒', '擦边',
+  'cosplay', '黑丝诱惑', '无码', '有码', 'SWAG', '网红主播', '色情片', '同性片',
+  '91视频', '自拍偷拍', 'mini传媒', '写真热舞', '三级',
+];
+
+function isAdultText(text) {
+  if (!text) return false;
+  const s = String(text).toLowerCase();
+  return ADULT_KEYWORDS.some((k) => s.includes(k.toLowerCase()));
+}
+
+/** 拉取源站分类列表（ac=list），剔除不健康分类；失败返回 null（不写入 categories 字段）。 */
+async function fetchSafeCategories(source, timeoutMs = 12000, attempt = 0) {
+  const url = `${source.url}${source.url.includes('?') ? '&' : '?'}ac=list`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': USER_AGENTS[attempt % USER_AGENTS.length], 'Accept': 'application/json,*/*' },
+      signal: controller.signal,
+      redirect: 'follow',
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const json = JSON.parse(await resp.text());
+    const classes = json?.class || json?.classes || [];
+    const names = classes
+      .map((c) => c?.type_name)
+      .filter((n) => typeof n === 'string' && n.trim())
+      .filter((n) => !isAdultText(n));
+    return names.length ? [...new Set(names)] : null;
+  } catch {
+    if (attempt < 1) return fetchSafeCategories(source, timeoutMs, attempt + 1);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** 为所有源补充 categories（白名单：仅保留健康分类），并剔除成人向源站。 */
+async function enrichWithCategories(sources, concurrency = 10) {
+  const healthy = sources.filter((s) => !isAdultText(s.name) && !isAdultText(s.url));
+  const dropped = sources.length - healthy.length;
+  const cats = await runConcurrent(healthy, (s) => fetchSafeCategories(s), concurrency);
+  healthy.forEach((s, i) => { if (cats[i]) s.categories = cats[i]; });
+  return { sources: healthy, dropped, withCats: cats.filter(Boolean).length };
+}
+
 function buildTvbox(name, sources) {
   return {
     name,
@@ -377,6 +427,8 @@ function buildTvbox(name, sources) {
       api: s.url,
       searchable: 1,
       quickSearch: 1,
+      // 分类白名单：仅暴露健康分类，FongMi 会据此隐藏「伦理/福利」等板块
+      ...(s.categories?.length ? { categories: s.categories } : {}),
     })),
     parses: [],
     flags: [],
@@ -418,11 +470,14 @@ async function main() {
   // ── 0. 仅格式转换：从已有 source-list JSON 生成三种订阅格式 ──
   if (args.fromFile) {
     const list = JSON.parse(fs.readFileSync(args.fromFile, 'utf-8').replace(/^\uFEFF/, ''));
-    const sources = (list.sources || [])
+    let sources = (list.sources || [])
       .map(s => ({ name: s.name || hostnameOf(s.url || ''), url: normalizeVodUrl(s.url), detail: s.detail }))
       .filter(s => s.url);
     if (!sources.length) { console.error('❌ from-file 中没有可用点播源'); process.exit(1); }
-    const name = list.name || `精选源 ${new Date().toISOString().slice(0, 10)} (${sources.length}个)`;
+    const en = await enrichWithCategories(sources);
+    sources = en.sources;
+    console.log(`\n🧹 不健康过滤：剔除源 ${en.dropped} 个，${en.withCats}/${sources.length} 个源已写入健康分类白名单`);
+    const name = `LibreTV 精选源 ${new Date().toISOString().slice(0, 10)} (${sources.length}个)`;
     const { tvboxPath, selenePath } = writeSubscriptions(args, name, sources, list.liveSources || []);
     console.log(`\n📄 LibreTV: ${args.output}\n📄 FongMi/TVBox: ${tvboxPath}\n📄 Selene-TV: ${selenePath}`);
     return;
@@ -490,17 +545,23 @@ async function main() {
     }
   }
 
+  // ── 6.5 不健康内容过滤：剔除成人向源站，并为每个源拉取「健康分类」白名单 ──
+  console.log(`\n🧹 过滤不健康内容（成人分类关键词 ${ADULT_KEYWORDS.length} 个）...`);
+  const en = await enrichWithCategories(topAlive);
+  const healthySources = en.sources;
+  console.log(`   剔除源站 ${en.dropped} 个，${en.withCats}/${healthySources.length} 个源已写入健康分类白名单`);
+
   // ── 7. 组装输出 ──
   const output = {
-    name: `LibreTV 精选源 ${new Date().toISOString().slice(0, 10)} (${topAlive.length}个)`,
+    name: `LibreTV 精选源 ${new Date().toISOString().slice(0, 10)} (${healthySources.length}个)`,
     _meta: {
       generatedAt: new Date().toISOString(),
       probeElapsedSec: Number(elapsed),
       probeConfig: { concurrency: args.probeConcurrency, timeoutMs: args.timeout },
-      stats: { totalCandidates: candidates.length, alive: alive.length, dead: dead.length, outputSources: topAlive.length },
+      stats: { totalCandidates: candidates.length, alive: alive.length, dead: dead.length, droppedAdult: en.dropped, outputSources: healthySources.length },
       deadSources: dead.slice(0, 50).map(d => ({ name: d.name, url: d.url, error: d.error })),
     },
-    sources: topAlive.map(s => ({ name: s.name, url: s.url, detail: `探活 ${s.ms}ms` })),
+    sources: healthySources.map(s => ({ name: s.name, url: s.url, detail: `探活 ${s.ms}ms` })),
     liveSources: [],
   };
   // _meta 是内部字段，去掉保证纯订阅格式
@@ -513,7 +574,7 @@ async function main() {
   console.log(`\n📄 已写入 ${args.output}`);
 
   // 同步产出 FongMi(TVBox) / Selene(Base58) 订阅
-  const { tvboxPath, selenePath } = writeSubscriptions(args, output.name, output.sources, []);
+  const { tvboxPath, selenePath } = writeSubscriptions(args, output.name, healthySources, []);
   console.log(`📄 FongMi/TVBox: ${tvboxPath}`);
   console.log(`📄 Selene-TV: ${selenePath}`);
 
@@ -527,19 +588,20 @@ async function main() {
   // GitHub Actions GITHUB_OUTPUT —— 让 workflow 能拿到统计数据（格式：key=value）
   if (process.env.GITHUB_OUTPUT) {
     const summary = [
-      `alive_count=${topAlive.length}`,
+      `alive_count=${healthySources.length}`,
       `dead_count=${dead.length}`,
       `candidate_count=${candidates.length}`,
+      `dropped_adult=${en.dropped}`,
       `total_ms=${elapsed}`,
       `top_n=${args.topN}`,
-      `summary=采集完成：${topAlive.length} 活源 / ${dead.length} 死源 / 候选 ${candidates.length}（耗时 ${elapsed}s）`,
+      `summary=采集完成：${healthySources.length} 活源 / ${dead.length} 死源 / 剔除成人源 ${en.dropped}（耗时 ${elapsed}s）`,
     ].join('\n');
     fs.appendFileSync(process.env.GITHUB_OUTPUT, summary + '\n');
-    console.log(`\n🔧 GITHUB_OUTPUT 已写入：alive=${topAlive.length} dead=${dead.length} elapsed=${elapsed}s`);
+    console.log(`\n🔧 GITHUB_OUTPUT 已写入：alive=${healthySources.length} dead=${dead.length} elapsed=${elapsed}s`);
   }
 
   // 退出码：没活源 → 非 0（让 CI 标记为失败）
-  if (topAlive.length === 0) {
+  if (healthySources.length === 0) {
     console.error('\n❌ 没有任何活源，退出码 2');
     process.exit(2);
   }
