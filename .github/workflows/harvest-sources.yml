@@ -29,22 +29,22 @@ on:
         description: '保留多少个最快活源（默认 60）'
         required: false
         default: '60'
-        type: number
+        type: string
       probe_limit:
         description: '最多探活多少个候选（默认 300，避免网络风暴）'
         required: false
         default: '300'
-        type: number
+        type: string
       probe_concurrency:
         description: '探活并发数（默认 10，不要开太高）'
         required: false
         default: '10'
-        type: number
+        type: string
       timeout:
         description: '单个源探活超时 ms（默认 6000）'
         required: false
         default: '6000'
-        type: number
+        type: string
 
 permissions:
   # 只需要往 source-list 分支 push —— contents:write 够用
@@ -142,51 +142,29 @@ jobs:
           # 把备份的产出放回来
           cp -f "$RUNNER_TEMP/harvest-out/source-list.latest.json" ./source-list.latest.json
           cp -f "$RUNNER_TEMP/harvest-out/source-list.latest.report.json" ./source-list.latest.report.json
-          # 方便人类直接点击查看的 README（订阅地址动态生成）
-          cat > README.md << 'READMEEOF'
-# LibreTV 自动采集点播源
 
-> 本分支由 GitHub Actions 自动生成，**每天更新一次**（北京时间 08:00），请勿手动修改。
-
-## 订阅地址
-
-在 LibreTV 里：**设置 → 源管理 → 数据源订阅**，粘贴：
-
-```
-SUBSCRIBE_URL
-```
-
-点「订阅」即可。LibreTV 会自动拉取、去重、合并到你现有的点播源里。
-
-## 文件说明
-
-| 文件 | 内容 |
-|------|------|
-| `source-list.latest.json` | 纯 LibreTV-SourceList 格式，只保留探活通过且按耗时升序的 top-N 活源 |
-| `source-list.latest.report.json` | 完整探活报告（每个源的耗时、HTTP 状态、死源原因、总耗时） |
-
-## 生成链路
-
-```
-scripts/source-harvest.mjs
-  → 多订阅拉取 → URL 规范化 → 去重 → 并发探活
-  → 过滤活源 → 按耗时排序 → 截断 top-N → 写入本分支
-```
-
-脚本零外部依赖，Node 18+ 可直接跑：
-
-```bash
-node scripts/source-harvest.mjs --help
-```
-
-## 问题排查
-
-- **没活源**：report.json 里会显示每个候选源的死源原因（HTTP 403 / 超时 / fetch failed）
-- **太少活源**：改 `probe-limit`、`timeout`，或在脚本里加新的 seed URL 重新跑
-- **跑不动**：手动触发 workflow，inputs 里调参数重试
-READMEEOF
-          # 用真实的订阅地址替换占位符
-          sed -i "s|SUBSCRIBE_URL|https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/source-list/source-list.latest.json|g" README.md
+          # 方便人类直接查看的 README（订阅地址动态生成）
+          # 注意：这里用 printf 而不是 heredoc —— heredoc 的内容会顶格写，
+          # 破坏 YAML 的 run: | 块标量，导致 GitHub 判定 workflow 文件无效。
+          SUB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/source-list/source-list.latest.json"
+          printf '%s\n' \
+            '# LibreTV 自动采集点播源' \
+            '' \
+            '> 本分支由 GitHub Actions 自动生成，每天更新一次（北京时间 08:00），请勿手动修改。' \
+            '' \
+            '## 订阅地址' \
+            '' \
+            '在 LibreTV：设置 → 源管理 → 数据源订阅，粘贴：' \
+            '' \
+            '```' \
+            "$SUB_URL" \
+            '```' \
+            '' \
+            '## 文件说明' \
+            '' \
+            '- `source-list.latest.json` — 探活通过、按耗时升序的 top-N 活源' \
+            '- `source-list.latest.report.json` — 完整探活报告（每个源的耗时、失败原因）' \
+            > README.md
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
