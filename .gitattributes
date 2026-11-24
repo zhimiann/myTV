@@ -1,0 +1,14 @@
+# GitHub Actions workflows MUST use LF — GitHub 严格要求
+.github/workflows/*.yml text eol=lf
+.github/workflows/*.yaml text eol=lf
+
+# Node 脚本用 LF（Linux runner 上跑）
+scripts/*.mjs text eol=lf
+scripts/*.js  text eol=lf
+scripts/*.json text eol=lf
+
+# Source list 产出也用 LF
+source-list*.json text eol=lf
+
+# 其余按 Git 默认
+* text=auto
