@@ -119,6 +119,8 @@ jobs:
           path: |
             source-list.latest.json
             source-list.latest.report.json
+            tvbox.latest.json
+            selene.latest.txt
           retention-days: 7
           if-no-files-found: warn
 
@@ -138,8 +140,10 @@ jobs:
           # 关键：切分支/清工作区之前，先把产出备份到 runner 临时目录。
           # 采集脚本把结果写在仓库根目录，而下面的 git rm -rf . 会把它们一起删掉。
           mkdir -p "$RUNNER_TEMP/harvest-out"
-          cp -f source-list.latest.json source-list.latest.report.json "$RUNNER_TEMP/harvest-out/"
+          cp -f source-list.latest.json source-list.latest.report.json tvbox.latest.json selene.latest.txt "$RUNNER_TEMP/harvest-out/"
           test -s "$RUNNER_TEMP/harvest-out/source-list.latest.json"
+          test -s "$RUNNER_TEMP/harvest-out/tvbox.latest.json"
+          test -s "$RUNNER_TEMP/harvest-out/selene.latest.txt"
 
           # 首次：orphan 分支，清空历史
           if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null 2>&1; then
@@ -157,27 +161,48 @@ jobs:
           # 把备份的产出放回来
           cp -f "$RUNNER_TEMP/harvest-out/source-list.latest.json" ./source-list.latest.json
           cp -f "$RUNNER_TEMP/harvest-out/source-list.latest.report.json" ./source-list.latest.report.json
+          cp -f "$RUNNER_TEMP/harvest-out/tvbox.latest.json" ./tvbox.latest.json
+          cp -f "$RUNNER_TEMP/harvest-out/selene.latest.txt" ./selene.latest.txt
 
           # 方便人类直接查看的 README（订阅地址动态生成）
           # 注意：这里用 printf 而不是 heredoc —— heredoc 的内容会顶格写，
           # 破坏 YAML 的 run: | 块标量，导致 GitHub 判定 workflow 文件无效。
           SUB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/source-list/source-list.latest.json"
+          TVBOX_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/source-list/tvbox.latest.json"
+          SELENE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/source-list/selene.latest.txt"
           printf '%s\n' \
-            '# LibreTV 自动采集点播源' \
+            '# 自动采集点播源（多端订阅）' \
             '' \
             '> 本分支由 GitHub Actions 自动生成，每天更新一次（北京时间 08:00），请勿手动修改。' \
             '' \
             '## 订阅地址' \
             '' \
-            '在 LibreTV：设置 → 源管理 → 数据源订阅，粘贴：' \
+            '### LibreTV' \
+            '设置 → 源管理 → 数据源订阅，粘贴：' \
             '' \
             '```' \
             "$SUB_URL" \
             '```' \
             '' \
+            '### FongMi TV / TVBox' \
+            '设置 → 配置地址，粘贴：' \
+            '' \
+            '```' \
+            "$TVBOX_URL" \
+            '```' \
+            '' \
+            '### Selene-TV' \
+            '设置 → 订阅地址，粘贴：' \
+            '' \
+            '```' \
+            "$SELENE_URL" \
+            '```' \
+            '' \
             '## 文件说明' \
             '' \
-            '- `source-list.latest.json` — 探活通过、按耗时升序的 top-N 活源' \
+            '- `source-list.latest.json` — LibreTV 格式（探活通过、按耗时升序的 top-N 活源）' \
+            '- `tvbox.latest.json` — TVBox/FongMi 格式（sites 直连 CMS 接口）' \
+            '- `selene.latest.txt` — Selene-TV 格式（Base58 编码的 api_site/lives）' \
             '- `source-list.latest.report.json` — 完整探活报告（每个源的耗时、失败原因）' \
             > README.md
 

@@ -45,6 +45,7 @@ function parseArgs(argv) {
     config: DEFAULT_CONFIG,
     seed: [],
     output: DEFAULT_OUTPUT,
+    fromFile: null,            // 直接从已有 source-list JSON 转换（跳过采集）
     probeConcurrency: 10,
     timeout: 6000,
     probeLimit: 300,           // 最多探活多少个源（避免网络风暴）
@@ -57,16 +58,23 @@ function parseArgs(argv) {
     ],
     verbose: false,
   };
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
+  // 兼容 --key=value 形式
+  const flat = [];
+  for (const a of argv) {
+    const m = /^(--[a-z-]+)=(.+)$/.exec(a);
+    if (m) flat.push(m[1], m[2]); else flat.push(a);
+  }
+  for (let i = 0; i < flat.length; i++) {
+    const a = flat[i];
     switch (a) {
-      case '--config': args.config = argv[++i]; break;
-      case '--seed':   args.seed = argv[++i].split(',').map(s => s.trim()).filter(Boolean); break;
-      case '--output': args.output = argv[++i]; break;
-      case '--probe-concurrency': args.probeConcurrency = Number(argv[++i]); break;
-      case '--timeout': args.timeout = Number(argv[++i]); break;
-      case '--probe-limit': args.probeLimit = Number(argv[++i]); break;
-      case '--top-n': args.topN = Number(argv[++i]); break;
+      case '--config': args.config = flat[++i]; break;
+      case '--seed':   args.seed = flat[++i].split(',').map(s => s.trim()).filter(Boolean); break;
+      case '--output': args.output = flat[++i]; break;
+      case '--probe-concurrency': args.probeConcurrency = Number(flat[++i]); break;
+      case '--timeout': args.timeout = Number(flat[++i]); break;
+      case '--probe-limit': args.probeLimit = Number(flat[++i]); break;
+      case '--top-n': args.topN = Number(flat[++i]); break;
+      case '--from-file': args.fromFile = flat[++i]; break;
       case '--no-github': args.github = false; break;
       case '--verbose': args.verbose = true; break;
     }
@@ -336,13 +344,89 @@ function dedupeByUrl(sources) {
   return out;
 }
 
+// ─── 多格式订阅输出（LibreTV / FongMi-TVBox / Selene-TV） ────────────────────
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+// 标准 Base58（无 checksum），对齐 Selene-TV util/Base58.kt
+function base58Encode(buf) {
+  let zeros = 0;
+  while (zeros < buf.length && buf[zeros] === 0) zeros++;
+  const digits = [0];
+  for (let i = zeros; i < buf.length; i++) {
+    let carry = buf[i];
+    for (let j = 0; j < digits.length; j++) {
+      carry += digits[j] << 8;
+      digits[j] = carry % 58;
+      carry = (carry / 58) | 0;
+    }
+    while (carry > 0) { digits.push(carry % 58); carry = (carry / 58) | 0; }
+  }
+  let out = '1'.repeat(zeros);
+  for (let i = digits.length - 1; i >= 0; i--) out += BASE58_ALPHABET[digits[i]];
+  return out;
+}
+
+function buildTvbox(name, sources) {
+  return {
+    name,
+    spider: '',
+    sites: sources.map((s, i) => ({
+      key: `cms${i}`,
+      name: s.name,
+      type: 1,
+      api: s.url,
+      searchable: 1,
+      quickSearch: 1,
+    })),
+    parses: [],
+    flags: [],
+    lives: [],
+    ads: [],
+  };
+}
+
+// Selene-TV 订阅格式：Base58(JSON { api_site, lives })
+function buildSelene(sources) {
+  const api_site = {};
+  sources.forEach((s, i) => {
+    const key = `cms${i}`;
+    api_site[key] = { key, name: s.name, api: s.url, detail: s.detail ?? '', from: 'myTV' };
+  });
+  return { api_site, lives: {} };
+}
+
+/** 写出三种订阅格式，返回路径。 */
+function writeSubscriptions(args, name, sources, liveSources) {
+  fs.writeFileSync(args.output, JSON.stringify({ name, sources, liveSources }, null, 2), 'utf-8');
+  const dir = path.dirname(args.output);
+  const tvboxPath = path.join(dir, 'tvbox.latest.json');
+  const selenePath = path.join(dir, 'selene.latest.txt');
+  fs.writeFileSync(tvboxPath, JSON.stringify(buildTvbox(name, sources), null, 2), 'utf-8');
+  fs.writeFileSync(selenePath, base58Encode(Buffer.from(JSON.stringify(buildSelene(sources)), 'utf-8')), 'utf-8');
+  return { tvboxPath, selenePath };
+}
+
 // ─── 主流程 ───────────────────────────────────────────────────────────────────
 async function main() {
   const rawArgs = parseArgs(process.argv.slice(2));
-  const args = loadConfig(rawArgs);
+  // --from-file 是纯格式转换，不加载采集配置（避免 config 里的 output 覆盖 CLI）
+  const args = rawArgs.fromFile ? rawArgs : loadConfig(rawArgs);
   console.log('╔════════════════════════════════════════════════════════════╗');
   console.log('║          LibreTV 点播源采集脚本 v0.1                       ║');
   console.log('╚════════════════════════════════════════════════════════════╝');
+
+  // ── 0. 仅格式转换：从已有 source-list JSON 生成三种订阅格式 ──
+  if (args.fromFile) {
+    const list = JSON.parse(fs.readFileSync(args.fromFile, 'utf-8').replace(/^\uFEFF/, ''));
+    const sources = (list.sources || [])
+      .map(s => ({ name: s.name || hostnameOf(s.url || ''), url: normalizeVodUrl(s.url), detail: s.detail }))
+      .filter(s => s.url);
+    if (!sources.length) { console.error('❌ from-file 中没有可用点播源'); process.exit(1); }
+    const name = list.name || `精选源 ${new Date().toISOString().slice(0, 10)} (${sources.length}个)`;
+    const { tvboxPath, selenePath } = writeSubscriptions(args, name, sources, list.liveSources || []);
+    console.log(`\n📄 LibreTV: ${args.output}\n📄 FongMi/TVBox: ${tvboxPath}\n📄 Selene-TV: ${selenePath}`);
+    return;
+  }
 
   // ── 1. 收集种子订阅 URL ──
   const seedUrls = [...new Set([
@@ -427,6 +511,11 @@ async function main() {
   };
   fs.writeFileSync(args.output, JSON.stringify(clean, null, 2), 'utf-8');
   console.log(`\n📄 已写入 ${args.output}`);
+
+  // 同步产出 FongMi(TVBox) / Selene(Base58) 订阅
+  const { tvboxPath, selenePath } = writeSubscriptions(args, output.name, output.sources, []);
+  console.log(`📄 FongMi/TVBox: ${tvboxPath}`);
+  console.log(`📄 Selene-TV: ${selenePath}`);
 
   // 同时写一个带 meta 的完整报告（便于排查）
   const reportPath = args.output.replace(/\.json$/, '.report.json');
