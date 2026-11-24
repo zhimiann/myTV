@@ -101,17 +101,26 @@ jobs:
           #   source-list.latest.json          → 给 LibreTV 订阅的纯源列表
           #   source-list.latest.report.json   → 完整探活报告（含死源原因）
 
+      # ── 3.5 统计摘要（无论成败都输出 annotation，便于排查） ──
+      - name: 采集结果摘要
+        if: always()
+        run: |
+          echo "candidates=${{ steps.harvest.outputs.candidate_count }} alive=${{ steps.harvest.outputs.alive_count }} dead=${{ steps.harvest.outputs.dead_count }} elapsed=${{ steps.harvest.outputs.total_ms }}s"
+          echo "::warning title=Harvest stats::candidates=${{ steps.harvest.outputs.candidate_count }} alive=${{ steps.harvest.outputs.alive_count }} dead=${{ steps.harvest.outputs.dead_count }} elapsed=${{ steps.harvest.outputs.total_ms }}s"
+          echo "::warning title=Harvest step conclusion::${{ steps.harvest.outcome }}"
+
       # ── 4. 把产出挂成 artifact（保留 7 天） ──
       # 方便临时分享、调试、或者 source-list 分支刚建还没合并的时候先用
       - name: 上传 artifact
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: source-list-${{ github.run_number }}
           path: |
             source-list.latest.json
             source-list.latest.report.json
           retention-days: 7
-          if-no-files-found: error
+          if-no-files-found: warn
 
       # ── 5. 推到 source-list 分支 ──
       #  - 首次跑：新建 orphan 分支（只含这一个文件，历史干净）

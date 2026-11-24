@@ -435,18 +435,17 @@ async function main() {
     console.log(`📊 完整报告 ${reportPath}`);
   }
 
-  // GitHub Actions GITHUB_OUTPUT —— 让 workflow 能拿到统计数据
+  // GitHub Actions GITHUB_OUTPUT —— 让 workflow 能拿到统计数据（格式：key=value）
   if (process.env.GITHUB_OUTPUT) {
     const summary = [
-      `name=alive_count::${topAlive.length}`,
-      `dead_count::${dead.length}`,
-      `candidate_count::${candidates.length}`,
-      `total_ms::${elapsed}`,
-      `top_n::${args.topN}`,
-      // 快速摘要，actions 日志末尾直接可见
-      `summary::采集完成：${topAlive.length} 活源 / ${dead.length} 死源 / 候选 ${candidates.length}（耗时 ${elapsed}s）`,
+      `alive_count=${topAlive.length}`,
+      `dead_count=${dead.length}`,
+      `candidate_count=${candidates.length}`,
+      `total_ms=${elapsed}`,
+      `top_n=${args.topN}`,
+      `summary=采集完成：${topAlive.length} 活源 / ${dead.length} 死源 / 候选 ${candidates.length}（耗时 ${elapsed}s）`,
     ].join('\n');
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, '\n' + summary + '\n');
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, summary + '\n');
     console.log(`\n🔧 GITHUB_OUTPUT 已写入：alive=${topAlive.length} dead=${dead.length} elapsed=${elapsed}s`);
   }
 
