@@ -73,8 +73,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          # harvest.mjs 零外部依赖，不 cache npm（省点空间）
-          cache: none
+          # harvest.mjs 零外部依赖，不配置 npm cache
 
       # ── 3. 跑采集脚本 ──
       #  - scripts/source-harvest.mjs 零依赖，直接 node 跑
@@ -117,23 +116,32 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           BRANCH="source-list"
           DATE="$(date -u +%Y-%m-%d)"
+
+          # 关键：切分支/清工作区之前，先把产出备份到 runner 临时目录。
+          # 采集脚本把结果写在仓库根目录，而下面的 git rm -rf . 会把它们一起删掉。
+          mkdir -p "$RUNNER_TEMP/harvest-out"
+          cp -f source-list.latest.json source-list.latest.report.json "$RUNNER_TEMP/harvest-out/"
+          test -s "$RUNNER_TEMP/harvest-out/source-list.latest.json"
 
           # 首次：orphan 分支，清空历史
           if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null 2>&1; then
             echo "分支 $BRANCH 已存在，直接更新"
             git fetch origin "$BRANCH"
-            git checkout "$BRANCH"
+            git checkout -f -B "$BRANCH" "origin/$BRANCH"
+            git clean -fdx
           else
             echo "分支 $BRANCH 不存在，新建 orphan"
             git checkout --orphan "$BRANCH"
             git rm -rf . > /dev/null 2>&1 || true
+            git clean -fdx
           fi
 
-          # 把产出的两个文件放进工作区
-          cp -f "${{ github.workspace }}/source-list.latest.json" ./source-list.latest.json
-          cp -f "${{ github.workspace }}/source-list.latest.report.json" ./source-list.latest.report.json
+          # 把备份的产出放回来
+          cp -f "$RUNNER_TEMP/harvest-out/source-list.latest.json" ./source-list.latest.json
+          cp -f "$RUNNER_TEMP/harvest-out/source-list.latest.report.json" ./source-list.latest.report.json
           # 方便人类直接点击查看的 README（订阅地址动态生成）
           cat > README.md << 'READMEEOF'
 # LibreTV 自动采集点播源
