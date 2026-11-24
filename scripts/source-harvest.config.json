@@ -1,0 +1,23 @@
+{
+  "_comment": "source-harvest.mjs 的默认配置；CLI 参数可覆盖",
+
+  "seed": [
+    "https://raw.githubusercontent.com/haojun19980728-prog/libretv-source-list/main/libretv-sources.json",
+    "https://freed.yuanhsing.cf/TVBox/meowcf.json",
+    "https://pastebin.com/raw/gtbKvnE1"
+  ],
+
+  "probeConcurrency": 10,
+  "timeout": 6000,
+  "probeLimit": 300,
+  "topN": 60,
+
+  "github": true,
+  "githubQueries": [
+    "inurl:/api.php/provide/vod language:JSON",
+    "inurl:/api.php/provide/vod 影视 采集",
+    "api.php/provide/vod sites language:JSON"
+  ],
+
+  "output": "source-list.latest.json"
+}

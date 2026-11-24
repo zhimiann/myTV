@@ -10,7 +10,8 @@
     "start": "next start -p 8080",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "harvest:sources": "node scripts/source-harvest.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.59.0",

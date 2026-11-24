@@ -1,0 +1,191 @@
+name: harvest-sources
+
+# 每天凌晨（北京时间 08:00）跑一次「点播源自动采集」：
+#  1. 从配置的多个订阅地址拉取候选源（含官方维护的 libretv-source-list）
+#  2. 自动 URL 规范化 + 去重
+#  3. 并发探活（GET ?ac=videolist&wd=孤勇者，6s 超时）
+#  4. 保留最快的 top-N 活源，按耗时升序排序
+#  5. 提交到 `source-list` 分支（纯静态资源，独立于 main）
+#
+# 为什么单独分支而不是 artifact：
+#  - artifact 只保留 7 天（Actions 免费额度用完就没了）
+#  - source-list 分支走 raw.githubusercontent.com，任何人都能直接当订阅地址
+#    填进 LibreTV 的「数据源订阅」框（GITHUB_REPOSITORY 自动适配当前仓库）：
+#      https://raw.githubusercontent.com/<owner>/<repo>/source-list/source-list.latest.json
+#  - 不污染 main 的提交历史
+#
+# 为什么独立 workflow：
+#  - 跑一次约 20–40s（候选源 30~300，并发 10），与 CI 检查互不干扰
+#  - 失败不影响主项目构建（单独的 runs-on + 单独的 concurrency）
+#  - 手动触发也能拿到干净的源列表，不碰 main
+
+on:
+  schedule:
+    # UTC 00:00 = 北京时间 08:00
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      top_n:
+        description: '保留多少个最快活源（默认 60）'
+        required: false
+        default: '60'
+        type: number
+      probe_limit:
+        description: '最多探活多少个候选（默认 300，避免网络风暴）'
+        required: false
+        default: '300'
+        type: number
+      probe_concurrency:
+        description: '探活并发数（默认 10，不要开太高）'
+        required: false
+        default: '10'
+        type: number
+      timeout:
+        description: '单个源探活超时 ms（默认 6000）'
+        required: false
+        default: '6000'
+        type: number
+
+permissions:
+  # 只需要往 source-list 分支 push —— contents:write 够用
+  contents: write
+
+concurrency:
+  group: harvest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      alive_count: ${{ steps.harvest.outputs.alive_count }}
+      dead_count: ${{ steps.harvest.outputs.dead_count }}
+      total_ms: ${{ steps.harvest.outputs.total_ms }}
+    steps:
+      # ── 1. 拉代码 ──
+      - uses: actions/checkout@v4
+        # fetch-depth=0 下面才能正确生成 source-list 分支的首次提交
+        with:
+          fetch-depth: 0
+
+      # ── 2. 装 Node 22 + 脚本依赖 ──
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          # harvest.mjs 零外部依赖，不 cache npm（省点空间）
+          cache: none
+
+      # ── 3. 跑采集脚本 ──
+      #  - scripts/source-harvest.mjs 零依赖，直接 node 跑
+      #  - GitHub Actions 自动注入 GITHUB_TOKEN，脚本会用上提高 API 速率限制
+      #  - 传参支持 workflow_dispatch 的 inputs；schedule 触发时用默认值
+      - name: 采集点播源
+        id: harvest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ARGS=(
+            "--top-n=${{ inputs.top_n || 60 }}"
+            "--probe-limit=${{ inputs.probe_limit || 300 }}"
+            "--probe-concurrency=${{ inputs.probe_concurrency || 10 }}"
+            "--timeout=${{ inputs.timeout || 6000 }}"
+          )
+          node scripts/source-harvest.mjs "${ARGS[@]}"
+          # 产出的两个文件：
+          #   source-list.latest.json          → 给 LibreTV 订阅的纯源列表
+          #   source-list.latest.report.json   → 完整探活报告（含死源原因）
+
+      # ── 4. 把产出挂成 artifact（保留 7 天） ──
+      # 方便临时分享、调试、或者 source-list 分支刚建还没合并的时候先用
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-list-${{ github.run_number }}
+          path: |
+            source-list.latest.json
+            source-list.latest.report.json
+          retention-days: 7
+          if-no-files-found: error
+
+      # ── 5. 推到 source-list 分支 ──
+      #  - 首次跑：新建 orphan 分支（只含这一个文件，历史干净）
+      #  - 以后跑：直接覆盖，commit message 带日期 + 活源数
+      #  - 不碰 main：两个分支的历史完全独立
+      - name: 推到 source-list 分支
+        id: push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="source-list"
+          DATE="$(date -u +%Y-%m-%d)"
+
+          # 首次：orphan 分支，清空历史
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null 2>&1; then
+            echo "分支 $BRANCH 已存在，直接更新"
+            git fetch origin "$BRANCH"
+            git checkout "$BRANCH"
+          else
+            echo "分支 $BRANCH 不存在，新建 orphan"
+            git checkout --orphan "$BRANCH"
+            git rm -rf . > /dev/null 2>&1 || true
+          fi
+
+          # 把产出的两个文件放进工作区
+          cp -f "${{ github.workspace }}/source-list.latest.json" ./source-list.latest.json
+          cp -f "${{ github.workspace }}/source-list.latest.report.json" ./source-list.latest.report.json
+          # 方便人类直接点击查看的 README（订阅地址动态生成）
+          cat > README.md << 'READMEEOF'
+# LibreTV 自动采集点播源
+
+> 本分支由 GitHub Actions 自动生成，**每天更新一次**（北京时间 08:00），请勿手动修改。
+
+## 订阅地址
+
+在 LibreTV 里：**设置 → 源管理 → 数据源订阅**，粘贴：
+
+```
+SUBSCRIBE_URL
+```
+
+点「订阅」即可。LibreTV 会自动拉取、去重、合并到你现有的点播源里。
+
+## 文件说明
+
+| 文件 | 内容 |
+|------|------|
+| `source-list.latest.json` | 纯 LibreTV-SourceList 格式，只保留探活通过且按耗时升序的 top-N 活源 |
+| `source-list.latest.report.json` | 完整探活报告（每个源的耗时、HTTP 状态、死源原因、总耗时） |
+
+## 生成链路
+
+```
+scripts/source-harvest.mjs
+  → 多订阅拉取 → URL 规范化 → 去重 → 并发探活
+  → 过滤活源 → 按耗时排序 → 截断 top-N → 写入本分支
+```
+
+脚本零外部依赖，Node 18+ 可直接跑：
+
+```bash
+node scripts/source-harvest.mjs --help
+```
+
+## 问题排查
+
+- **没活源**：report.json 里会显示每个候选源的死源原因（HTTP 403 / 超时 / fetch failed）
+- **太少活源**：改 `probe-limit`、`timeout`，或在脚本里加新的 seed URL 重新跑
+- **跑不动**：手动触发 workflow，inputs 里调参数重试
+READMEEOF
+          # 用真实的订阅地址替换占位符
+          sed -i "s|SUBSCRIBE_URL|https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/source-list/source-list.latest.json|g" README.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git commit -m "🤖 harvest: $DATE （$(node -p "require('./source-list.latest.json').sources.length") 个活源）" \
+            || { echo '::notice::没有变化，跳过 commit'; exit 0; }
+          git push origin "$BRANCH"
+          echo "✅ 已推送到 source-list 分支"
+          echo "   订阅地址：https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/source-list/source-list.latest.json"
