@@ -23,6 +23,12 @@ on:
   schedule:
     # UTC 00:00 = 北京时间 08:00
     - cron: '0 0 * * *'
+  # 采集脚本或本 workflow 变更时立即跑一次，便于验证改动
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/harvest-sources.yml'
   workflow_dispatch:
     inputs:
       top_n:
