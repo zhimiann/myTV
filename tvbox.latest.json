@@ -4,9 +4,9 @@
   "sites": [
     {
       "key": "cms0",
-      "name": "光速资源",
+      "name": "🎬魔都动漫",
       "type": 1,
-      "api": "http://api.guangsuapi.com/api.php/provide/vod/from/gsm3u8",
+      "api": "https://caiji.moduapi.cc/api.php/provide/vod",
       "searchable": 1,
       "quickSearch": 1
     },
@@ -20,14 +20,6 @@
     },
     {
       "key": "cms2",
-      "name": "🎬U酷影视",
-      "type": 1,
-      "api": "https://api.ukuapi88.com/api.php/provide/vod",
-      "searchable": 1,
-      "quickSearch": 1
-    },
-    {
-      "key": "cms3",
       "name": "🎬豪华资源",
       "type": 1,
       "api": "https://hhzyapi.com/api.php/provide/vod",
@@ -35,26 +27,34 @@
       "quickSearch": 1
     },
     {
-      "key": "cms4",
-      "name": "🎬魔都动漫",
+      "key": "cms3",
+      "name": "🎬新浪资源",
       "type": 1,
-      "api": "https://caiji.moduapi.cc/api.php/provide/vod",
+      "api": "https://api.xinlangapi.com/xinlangapi.php/provide/vod/api.php/provide/vod",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "cms4",
+      "name": "🎬速播资源",
+      "type": 1,
+      "api": "https://subocaiji.com/api.php/provide/vod",
       "searchable": 1,
       "quickSearch": 1
     },
     {
       "key": "cms5",
-      "name": "U酷",
+      "name": "光速资源",
       "type": 1,
-      "api": "https://api.ukuapi.com/api.php/provide/vod",
+      "api": "http://api.guangsuapi.com/api.php/provide/vod/from/gsm3u8",
       "searchable": 1,
       "quickSearch": 1
     },
     {
       "key": "cms6",
-      "name": "🎬无尽资源",
+      "name": "🎬最大资源",
       "type": 1,
-      "api": "https://api.wujinapi.me/api.php/provide/vod",
+      "api": "https://api.zuidapi.com/api.php/provide/vod",
       "searchable": 1,
       "quickSearch": 1
     },
@@ -68,17 +68,17 @@
     },
     {
       "key": "cms8",
-      "name": "🎬速播资源",
+      "name": "🎬iKun资源",
       "type": 1,
-      "api": "https://subocaiji.com/api.php/provide/vod",
+      "api": "https://ikunzyapi.com/api.php/provide/vod",
       "searchable": 1,
       "quickSearch": 1
     },
     {
       "key": "cms9",
-      "name": "🎬新浪资源",
+      "name": "🎬电影天堂",
       "type": 1,
-      "api": "https://api.xinlangapi.com/xinlangapi.php/provide/vod/api.php/provide/vod",
+      "api": "http://caiji.dyttzyapi.com/api.php/provide/vod",
       "searchable": 1,
       "quickSearch": 1
     },
@@ -92,14 +92,6 @@
     },
     {
       "key": "cms11",
-      "name": "🎬iKun资源",
-      "type": 1,
-      "api": "https://ikunzyapi.com/api.php/provide/vod",
-      "searchable": 1,
-      "quickSearch": 1
-    },
-    {
-      "key": "cms12",
       "name": "虎牙",
       "type": 1,
       "api": "https://www.huyaapi.com/api.php/provide/vod",
@@ -107,7 +99,7 @@
       "quickSearch": 1
     },
     {
-      "key": "cms13",
+      "key": "cms12",
       "name": "量子資源",
       "type": 1,
       "api": "http://cj.lziapi.com/api.php/provide/vod/from/lzm3u8",
@@ -115,31 +107,7 @@
       "quickSearch": 1
     },
     {
-      "key": "cms14",
-      "name": "🎬电影天堂",
-      "type": 1,
-      "api": "http://caiji.dyttzyapi.com/api.php/provide/vod",
-      "searchable": 1,
-      "quickSearch": 1
-    },
-    {
-      "key": "cms15",
-      "name": "🎬最大资源",
-      "type": 1,
-      "api": "https://api.zuidapi.com/api.php/provide/vod",
-      "searchable": 1,
-      "quickSearch": 1
-    },
-    {
-      "key": "cms16",
-      "name": "🎬如意资源",
-      "type": 1,
-      "api": "https://cj.rycjapi.com/api.php/provide/vod",
-      "searchable": 1,
-      "quickSearch": 1
-    },
-    {
-      "key": "cms17",
+      "key": "cms13",
       "name": "🎬暴风资源",
       "type": 1,
       "api": "https://bfzyapi.com/api.php/provide/vod",
@@ -147,23 +115,7 @@
       "quickSearch": 1
     },
     {
-      "key": "cms18",
-      "name": "360",
-      "type": 1,
-      "api": "https://360zy.com/api.php/provide/vod",
-      "searchable": 1,
-      "quickSearch": 1
-    },
-    {
-      "key": "cms19",
-      "name": "非凡",
-      "type": 1,
-      "api": "http://cj.ffzyapi.com/api.php/provide/vod",
-      "searchable": 1,
-      "quickSearch": 1
-    },
-    {
-      "key": "cms20",
+      "key": "cms14",
       "name": "🎬魔都资源",
       "type": 1,
       "api": "https://www.mdzyapi.com/api.php/provide/vod",
@@ -171,15 +123,7 @@
       "quickSearch": 1
     },
     {
-      "key": "cms21",
-      "name": "🎬猫眼资源",
-      "type": 1,
-      "api": "https://api.maoyanapi.top/api.php/provide/vod",
-      "searchable": 1,
-      "quickSearch": 1
-    },
-    {
-      "key": "cms22",
+      "key": "cms15",
       "name": "🎬非凡资源",
       "type": 1,
       "api": "https://api.ffzyapi.com/api.php/provide/vod",
@@ -187,7 +131,7 @@
       "quickSearch": 1
     },
     {
-      "key": "cms23",
+      "key": "cms16",
       "name": "🎬极速资源",
       "type": 1,
       "api": "https://jszyapi.com/api.php/provide/vod",
@@ -195,7 +139,47 @@
       "quickSearch": 1
     },
     {
-      "key": "cms24",
+      "key": "cms17",
+      "name": "U酷",
+      "type": 1,
+      "api": "https://api.ukuapi.com/api.php/provide/vod",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "cms18",
+      "name": "非凡",
+      "type": 1,
+      "api": "http://cj.ffzyapi.com/api.php/provide/vod",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "cms19",
+      "name": "🎬茅台资源",
+      "type": 1,
+      "api": "https://caiji.maotaizy.cc/api.php/provide/vod",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "cms20",
+      "name": "360",
+      "type": 1,
+      "api": "https://360zy.com/api.php/provide/vod",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "cms21",
+      "name": "🎬如意资源",
+      "type": 1,
+      "api": "https://cj.rycjapi.com/api.php/provide/vod",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "cms22",
       "name": "🎬360 资源",
       "type": 1,
       "api": "https://360zyzz.com/api.php/provide/vod",
@@ -203,15 +187,15 @@
       "quickSearch": 1
     },
     {
-      "key": "cms25",
-      "name": "🎬-爱奇艺-",
+      "key": "cms23",
+      "name": "🎬猫眼资源",
       "type": 1,
-      "api": "https://iqiyizyapi.com/api.php/provide/vod",
+      "api": "https://api.maoyanapi.top/api.php/provide/vod",
       "searchable": 1,
       "quickSearch": 1
     },
     {
-      "key": "cms26",
+      "key": "cms24",
       "name": "🎬量子资源",
       "type": 1,
       "api": "https://cj.lzcaiji.com/api.php/provide/vod",
@@ -219,10 +203,26 @@
       "quickSearch": 1
     },
     {
-      "key": "cms27",
-      "name": "🎬茅台资源",
+      "key": "cms25",
+      "name": "🎬U酷影视",
       "type": 1,
-      "api": "https://caiji.maotaizy.cc/api.php/provide/vod",
+      "api": "https://api.ukuapi88.com/api.php/provide/vod",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "cms26",
+      "name": "🎬-爱奇艺-",
+      "type": 1,
+      "api": "https://iqiyizyapi.com/api.php/provide/vod",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "cms27",
+      "name": "🎬无尽资源",
+      "type": 1,
+      "api": "https://api.wujinapi.me/api.php/provide/vod",
       "searchable": 1,
       "quickSearch": 1
     }
